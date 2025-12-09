@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="it"> 
+ <head> 
+  <meta charset="UTF-8"> 
+  <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <title>Galleria</title> 
+
+<!-- Blocca indicizzazione -->
+  <meta name="robots" content="noindex, nofollow">
+
+<!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+	
+  <style>
+    :root {
+  --bg: #0a0014;          /* fondo scuro neutro */
+  --card: #1a0028;        /* card leggermente più chiara */
+  --text: #ffffff;        /* testo bianco */
+  --muted: #ffb6c1;       /* rosa chiaro per dettagli */
+  --accent: #ff004c;      /* rosso acceso */
+  --accent-2: #8a2be2;    /* viola neon */
+  --accent-3: #00bfff;    /* blu elettrico */
+  --accent-4: #ff69b4;    /* rosa shocking */
+  --glow: 0 0 14px rgba(255, 0, 76, 0.7),
+          0 0 24px rgba(138, 43, 226, 0.6),
+          0 0 34px rgba(0, 191, 255, 0.5);
+  --radius: 14px;
+}
+
+    * { box-sizing: border-box; }
+    body {
+  background: radial-gradient(1200px 600px at 80% -10%, rgba(0, 191, 255, 0.15), transparent 60%),
+              radial-gradient(900px 500px at -10% 20%, rgba(255, 0, 76, 0.12), transparent 65%),
+              radial-gradient(700px 400px at 50% 90%, rgba(255, 105, 180, 0.12), transparent 70%),
+              var(--bg);
+  color: var(--text);
+}
+
+    header {
+      padding: 32px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(6px);
+      position: sticky;
+      top: 0;
+      background: linear-gradient(180deg, rgba(11,11,18,0.85), rgba(11,11,18,0.65));
+      z-index: 20;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .logo {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background:
+        radial-gradient(60% 60% at 50% 40%, rgba(255,255,255,0.18), transparent 65%),
+        conic-gradient(from 160deg at 50% 50%, var(--accent), var(--accent-2));
+      box-shadow: var(--glow);
+    }
+    .title {
+      font-size: 1.25rem; letter-spacing: 0.4px; font-weight: 600;
+    }
+    .subtitle {
+      color: var(--muted); font-size: 0.95rem; margin-top: 6px;
+    }
+
+    main { padding: 28px 24px 64px; max-width: 1200px; margin: 0 auto; }
+
+    .filters {
+      display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+    }
+    .chip {
+      padding: 8px 12px; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--muted);
+      transition: all 0.25s ease;
+      background: rgba(255,255,255,0.02);
+    }
+    .chip:hover { color: var(--text); border-color: rgba(255,255,255,0.22); box-shadow: var(--glow); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(20,20,36,0.85), rgba(20,20,36,0.65));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: var(--glow); border-color: rgba(255,255,255,0.16); }
+
+    .thumb {
+      width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+      display: block; background: #0e0e17;
+    }
+
+    .card-body { padding: 12px 12px 14px; }
+    .meta { display: flex; justify-content: space-between; align-items: center; }
+    .label { font-size: 0.95rem; font-weight: 600; }
+    .duration { font-size: 0.8rem; color: var(--muted); }
+
+    .actions {
+      margin-top: 10px; display: flex; gap: 8px;
+    }
+    .btn {
+      padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05); color: var(--text); cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .btn:hover { box-shadow: var(--glow); border-color: rgba(255,255,255,0.22); }
+
+    /* Lightbox modal */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(5,5,10,0.7);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    .modal.open { display: flex; }
+    .modal-content {
+      width: min(92vw, 980px);
+      background: linear-gradient(180deg, rgba(20,20,36,0.92), rgba(20,20,36,0.86));
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--glow);
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .close {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px; color: var(--text);
+      padding: 6px 10px; cursor: pointer;
+    }
+    .viewer {
+      width: 100%; background: #0e0e17;
+      display: grid; place-items: center;
+    }
+    .viewer img, .viewer video { width: 100%; height: auto; max-height: 70vh; object-fit: contain; }
+
+    /* Responsive tweaks */
+    @media (max-width: 560px) {
+      .title { font-size: 1.1rem; }
+      .subtitle { font-size: 0.9rem; }
+    }
+  </style> 
+ </head> 
+ <body>
+
+<!-- Form di login -->
+<div id="loginDiv">
+  <h2>Accedi</h2>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="signup()">Registrati</button>
+</div>
+
+<!-- Contenuto del sito nascosto finché non si fa login -->
+<div id="siteContent" style="display:none;">
+ 
+  <header> 
+   <div class="brand"> 
+    <div class="logo" aria-hidden="true"></div> 
+    <div> 
+     <div class="title">
+      Galleria multimediale
+     </div> 
+     <div class="subtitle">
+      Foto e video in un layout elegante
+     </div> 
+    </div> 
+   </div> 
+  </header> 
+  <main> 
+   <div class="filters" aria-label="Filtri"> <button class="chip" data-filter="all">Tutti</button> <button class="chip" data-filter="foto">Foto</button> <button class="chip" data-filter="video">Video</button> 
+   </div> 
+   <section class="grid" id="gallery" aria-label="Galleria"> <!-- Esempi: sostituisci src con i tuoi file --> 
+    <article class="card" data-type="foto"> 
+     <img class="thumb" src="images/sample-photo-1.jpg" alt="Anteprima foto"> 
+     <div class="card-body"> 
+      <div class="meta"> 
+       <div class="label">
+        Foto 1
+       </div> 
+       <div class="duration">
+        JPEG
+       </div> 
+      </div> 
+      <div class="actions"> <button class="btn" data-open="image" data-src="images/sample-photo-1.jpg">Apri</button> <a class="btn" href="images/sample-photo-1.jpg" download>Scarica</a> 
+      </div> 
+     </div> 
+    </article> 
+    <article class="card" data-type="video"> 
+     <img class="thumb" src="images/sample-video-thumb.jpg" alt="Anteprima video"> 
+     <div class="card-body"> 
+      <div class="meta"> 
+       <div class="label">
+        Video 1
+       </div> 
+       <div class="duration">
+        1:24
+       </div> 
+      </div> 
+      <div class="actions"> <button class="btn" data-open="video" data-src="videos/sample-video-1.mp4">Riproduci</button> <a class="btn" href="videos/sample-video-1.mp4" download>Scarica</a> 
+      </div> 
+     </div> 
+    </article> <!-- Aggiungi altre card foto/video come sopra --> 
+   </section> 
+  </main> <!-- Modal --> 
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true"> 
+   <div class="modal-content"> 
+    <div class="modal-header"> 
+     <div class="title">
+      Visualizzazione
+     </div> <button class="close" id="closeBtn" aria-label="Chiudi">Chiudi</button> 
+    </div> 
+    <div class="viewer" id="viewer"></div> 
+   </div> 
+  </div> 
+  <script>
+    // Filtri
+    const chips = document.querySelectorAll('.chip');
+    const cards = document.querySelectorAll('.card');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const f = chip.dataset.filter;
+        cards.forEach(card => {
+          card.style.display = (f === 'all' || card.dataset.type === f) ? '' : 'none';
+        });
+      });
+    });
+
+    // Lightbox
+    const modal = document.getElementById('modal');
+    const viewer = document.getElementById('viewer');
+    const closeBtn = document.getElementById('closeBtn');
+
+    document.getElementById('gallery').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-open]');
+      if (!btn) return;
+      const type = btn.dataset.open;
+      const src = btn.dataset.src;
+
+      viewer.innerHTML = '';
+      if (type === 'image') {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'Immagine';
+        viewer.appendChild(img);
+      } else if (type === 'video') {
+        const video = document.createElement('video');
+        video.src = src;
+        video.controls = true;
+        video.autoplay = true;
+        viewer.appendChild(video);
+      }
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    });
+
+    const closeModal = () => {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      viewer.innerHTML = '';
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Accessibilità: chiusura con ESC
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+  </script> 
+
+<script>
+  // Configurazione Firebase (sostituisci con le tue chiavi!)
+  const firebaseConfig = {
+    apiKey: "TUO_API_KEY",
+    authDomain: "TUO_PROJECT_ID.firebaseapp.com",
+    projectId: "TUO_PROJECT_ID",
+    storageBucket: "TUO_PROJECT_ID.appspot.com",
+    messagingSenderId: "TUO_SENDER_ID",
+    appId: "TUO_APP_ID"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    auth.signInWithEmailAndPassword(email, password)
+      .catch(error => alert(error.message));
+  }
+
+  function signup() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(() => alert("Registrazione completata!"))
+      .catch(error => alert(error.message));
+  }
+
+  function logout() {
+    auth.signOut();
+  }
+
+  // Mostra/nasconde loginDiv e siteContent in base allo stato utente
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById("loginDiv").style.display = "none";
+      document.getElementById("siteContent").style.display = "block";
+    } else {
+      document.getElementById("loginDiv").style.display = "block";
+      document.getElementById("siteContent").style.display = "none";
+    }
+  });
+</script>
+
+ </body>
+</html>
